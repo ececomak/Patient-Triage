@@ -7,7 +7,9 @@ import com.ece.ertriage.model.Severity;
 import com.ece.ertriage.ui.benchmark.BenchmarkRunner;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.scene.chart.*;
 import javafx.scene.control.*;
@@ -24,17 +26,13 @@ import java.util.Map;
 public final class DashboardView extends BorderPane {
 
     private final TriageQueueService service = new TriageQueueService();
-
     private final TableView<Patient> table = new TableView<>();
     private final Label kpiWaiting = new Label("0");
     private final Label kpiTop = new Label("—");
-
     private final PieChart severityPie = new PieChart();
-
     private final CategoryAxis benchX = new CategoryAxis();
     private final NumberAxis benchY = new NumberAxis();
     private final BarChart<String, Number> benchChart = new BarChart<>(benchX, benchY);
-
     private final TextArea log = new TextArea();
 
     private static final DateTimeFormatter TIME_FMT =
@@ -56,12 +54,7 @@ public final class DashboardView extends BorderPane {
     private Pane buildHeader() {
         Label title = new Label("Acil Servis Triaj — Hasta Önceliklendirme");
         title.setStyle("-fx-font-size: 20px; -fx-font-weight: 700;");
-
-        HBox kpis = new HBox(16,
-                kpiCard("Bekleyen Hasta", kpiWaiting),
-                kpiCard("En Öncelikli", kpiTop)
-        );
-
+        HBox kpis = new HBox(16, kpiCard("Bekleyen Hasta", kpiWaiting), kpiCard("En Öncelikli", kpiTop));
         VBox left = new VBox(6, title, kpis);
         left.setPadding(new Insets(0, 0, 10, 0));
         return left;
@@ -79,7 +72,6 @@ public final class DashboardView extends BorderPane {
 
     private Pane buildCenter() {
         VBox form = buildAddForm();
-
         VBox center = new VBox(10, form, table);
         center.setPadding(new Insets(0, 10, 0, 0));
         VBox.setVgrow(table, Priority.ALWAYS);
@@ -89,17 +81,13 @@ public final class DashboardView extends BorderPane {
     private VBox buildAddForm() {
         TextField name = new TextField();
         name.setPromptText("Ad Soyad");
-
         Spinner<Integer> age = new Spinner<>(0, 120, 30);
         age.setEditable(true);
-
         ComboBox<Severity> severity = new ComboBox<>();
         severity.getItems().addAll(Severity.values());
         severity.setValue(Severity.MEDIUM);
-
         TextField complaint = new TextField();
         complaint.setPromptText("Şikayet (kısa)");
-
         CheckBox chronic = new CheckBox("Kronik");
         CheckBox pregnant = new CheckBox("Hamile");
 
@@ -107,18 +95,11 @@ public final class DashboardView extends BorderPane {
         add.setOnAction(e -> {
             String n = name.getText().trim();
             String c = complaint.getText().trim();
-            if (n.isEmpty()) {
-                toast("Ad Soyad zorunlu.");
-                return;
-            }
+            if (n.isEmpty()) { toast("Ad Soyad zorunlu."); return; }
             if (c.isEmpty()) c = "—";
-
             Patient p = service.addPatient(n, age.getValue(), severity.getValue(), c, chronic.isSelected(), pregnant.isSelected());
             log("EKLE " + p.id() + " | " + p.name() + " | " + p.severity());
-            name.clear();
-            complaint.clear();
-            chronic.setSelected(false);
-            pregnant.setSelected(false);
+            name.clear(); complaint.clear(); chronic.setSelected(false); pregnant.setSelected(false);
             refreshUI();
         });
 
@@ -134,23 +115,17 @@ public final class DashboardView extends BorderPane {
         });
 
         Button benchmark = new Button("Performans Testi");
-        benchmark.setOnAction(e -> runBenchmark());
+        benchmark.setOnAction(e -> runBenchmarkAsync(benchmark));
 
         GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(8);
-
+        grid.setHgap(10); grid.setVgap(8);
         int r = 0;
         grid.add(new Label("Ad Soyad"), 0, r); grid.add(name, 1, r++);
         grid.add(new Label("Yaş"), 0, r); grid.add(age, 1, r++);
         grid.add(new Label("Öncelik Seviyesi"), 0, r); grid.add(severity, 1, r++);
         grid.add(new Label("Şikayet"), 0, r); grid.add(complaint, 1, r++);
-
-        HBox flags = new HBox(12, chronic, pregnant);
-        grid.add(flags, 1, r++);
-
-        HBox buttons = new HBox(10, add, next, benchmark);
-        grid.add(buttons, 1, r++);
+        grid.add(new HBox(12, chronic, pregnant), 1, r++);
+        grid.add(new HBox(10, add, next, benchmark), 1, r++);
 
         VBox box = new VBox(8, new Label("Hasta Ekle"), grid);
         box.setPadding(new Insets(10));
@@ -161,19 +136,15 @@ public final class DashboardView extends BorderPane {
     private Pane buildRightPanel() {
         Label chartsTitle = new Label("Grafikler & Benchmark");
         chartsTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: 700;");
-
         severityPie.setTitle("Bekleyenlerde Öncelik Dağılımı");
-
-        benchChart.setTitle("Performans: Heap (PriorityQueue) vs Liste + Sıralama");
+        benchChart.setTitle("Performans: PriorityQueue vs Merge-Quick-HeapSort");
         benchX.setLabel("Hasta sayısı (N)");
-        benchY.setLabel("Süre (ms)");
+        benchY.setLabel("Toplam süre (µs)");
         benchChart.setLegendVisible(true);
         benchChart.setCategoryGap(12);
         benchChart.setBarGap(4);
-
         log.setEditable(false);
         log.setPrefRowCount(8);
-
         VBox right = new VBox(10, chartsTitle, severityPie, benchChart, new Label("Olay Günlüğü"), log);
         right.setPrefWidth(440);
         right.setPadding(new Insets(0, 0, 0, 10));
@@ -218,17 +189,13 @@ public final class DashboardView extends BorderPane {
 
         table.getColumns().setAll(id, name, sev, score, wait, arrival, comp);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setFocusTraversable(false);
     }
 
-    private void setupCharts() {
-        severityPie.setLabelsVisible(true);
-    }
+    private void setupCharts() { severityPie.setLabelsVisible(true); }
 
     private void setupTimer() {
-        Timeline t = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
-            service.rebuildHeapForNow();
-            refreshUI();
-        }));
+        Timeline t = new Timeline(new KeyFrame(Duration.seconds(1), e -> { service.rebuildHeapForNow(); refreshUI(); }));
         t.setCycleCount(Timeline.INDEFINITE);
         t.play();
     }
@@ -236,13 +203,11 @@ public final class DashboardView extends BorderPane {
     private void refreshUI() {
         List<Patient> ordered = service.snapshotOrdered();
         table.getItems().setAll(ordered);
-
         kpiWaiting.setText(String.valueOf(service.waitingCount()));
         service.peek().ifPresentOrElse(p -> {
             int s = TriagePolicy.score(p, System.currentTimeMillis());
             kpiTop.setText(p.id() + " (" + p.severity() + ") skor=" + s);
         }, () -> kpiTop.setText("—"));
-
         updateSeverityPie(ordered);
     }
 
@@ -250,7 +215,6 @@ public final class DashboardView extends BorderPane {
         Map<Severity, Integer> counts = new EnumMap<>(Severity.class);
         for (Severity s : Severity.values()) counts.put(s, 0);
         for (Patient p : ordered) counts.put(p.severity(), counts.get(p.severity()) + 1);
-
         severityPie.getData().clear();
         for (Severity s : Severity.values()) {
             int c = counts.get(s);
@@ -258,26 +222,63 @@ public final class DashboardView extends BorderPane {
         }
     }
 
-    private void runBenchmark() {
+    private void runBenchmarkAsync(Button btn) {
+        table.getSelectionModel().clearSelection();
+        btn.requestFocus();
+        btn.setDisable(true);
+        log("BİLGİ: Performans testi başladı...");
+
         int[] sizes = {1000, 3000, 7000, 12000};
 
-        BenchmarkRunner.Result r = BenchmarkRunner.run(sizes);
+        Task<BenchmarkRunner.Result> task = new Task<>() {
+            @Override
+            protected BenchmarkRunner.Result call() {
+                return BenchmarkRunner.run(sizes);
+            }
+        };
 
+        task.setOnSucceeded(e -> {
+            BenchmarkRunner.Result r = task.getValue();
+            Platform.runLater(() -> {
+                renderBenchmark(r, sizes);
+                log("BİLGİ: Performans testi bitti");
+                btn.setDisable(false);
+                table.getSelectionModel().clearSelection();
+                btn.requestFocus();
+            });
+        });
+
+        task.setOnFailed(e -> {
+            Throwable ex = task.getException();
+            Platform.runLater(() -> {
+                log("HATA: Performans testi başarısız: " + (ex != null ? ex.getMessage() : "Bilinmeyen hata"));
+                btn.setDisable(false);
+                table.getSelectionModel().clearSelection();
+                btn.requestFocus();
+            });
+        });
+
+        Thread t = new Thread(task, "benchmark-thread");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void renderBenchmark(BenchmarkRunner.Result r, int[] sizes) {
         benchChart.getData().clear();
-
-        XYChart.Series<String, Number> heap = new XYChart.Series<>();
-        heap.setName("Heap");
-
-        XYChart.Series<String, Number> listSort = new XYChart.Series<>();
-        listSort.setName("Liste+Sırala");
+        XYChart.Series<String, Number> heap = new XYChart.Series<>(); heap.setName("PriorityQueue(Heap)");
+        XYChart.Series<String, Number> merge = new XYChart.Series<>(); merge.setName("MergeSort");
+        XYChart.Series<String, Number> quick = new XYChart.Series<>(); quick.setName("QuickSort");
+        XYChart.Series<String, Number> heapSort = new XYChart.Series<>(); heapSort.setName("HeapSort");
 
         for (int i = 0; i < sizes.length; i++) {
-            heap.getData().add(new XYChart.Data<>(String.valueOf(sizes[i]), r.heapMs[i]));
-            listSort.getData().add(new XYChart.Data<>(String.valueOf(sizes[i]), r.listSortMs[i]));
+            String x = String.valueOf(sizes[i]);
+            heap.getData().add(new XYChart.Data<>(x, r.heapUs[i]));
+            merge.getData().add(new XYChart.Data<>(x, r.mergeUs[i]));
+            quick.getData().add(new XYChart.Data<>(x, r.quickUs[i]));
+            heapSort.getData().add(new XYChart.Data<>(x, r.heapSortUs[i]));
         }
-
-        benchChart.getData().addAll(heap, listSort);
-        log("TEST bitti. heap(ms)=" + join(r.heapMs) + " | liste+sirala(ms)=" + join(r.listSortMs));
+        benchChart.getData().addAll(heap, merge, quick, heapSort);
+        log("TEST: pq(µs)=" + join(r.heapUs) + " | merge(µs)=" + join(r.mergeUs) + " | quick(µs)=" + join(r.quickUs) + " | heapSort(µs)=" + join(r.heapSortUs));
     }
 
     private String join(long[] arr) {
@@ -292,15 +293,11 @@ public final class DashboardView extends BorderPane {
     private void seedDemoData() {
         service.addPatient("Ece", 21, Severity.MEDIUM, "Ateş", false, false);
         service.addPatient("Hilal", 22, Severity.HIGH, "Nefes darlığı", false, false);
-        service.addPatient("Ahmet", 70, Severity.HIGH, "Göğüs ağrısı", true, false);
-        service.addPatient("Elif", 31, Severity.CRITICAL, "Travma", false, true);
+        service.addPatient("Gizem", 70, Severity.HIGH, "Göğüs ağrısı", true, false);
+        service.addPatient("Zeren", 31, Severity.CRITICAL, "Travma", false, true);
     }
 
-    private void toast(String msg) {
-        log("BİLGİ " + msg);
-    }
+    private void toast(String msg) { log("BİLGİ: " + msg); }
 
-    private void log(String msg) {
-        log.appendText("[" + TIME_FMT.format(Instant.now()) + "] " + msg + "\n");
-    }
+    private void log(String msg) { log.appendText("[" + TIME_FMT.format(Instant.now()) + "] " + msg + "\n"); }
 }
