@@ -4,6 +4,7 @@ import com.ece.ertriage.algorithms.sorting.HeapSort;
 import com.ece.ertriage.algorithms.sorting.MergeSort;
 import com.ece.ertriage.algorithms.sorting.QuickSort;
 import com.ece.ertriage.core.TriagePolicy;
+import com.ece.ertriage.model.Gender;
 import com.ece.ertriage.model.Patient;
 import com.ece.ertriage.model.Severity;
 
@@ -125,11 +126,28 @@ public final class BenchmarkRunner {
     private static List<Patient> generatePatientsDeterministic(int n) {
         Random rnd = new Random(SEED + n);
         List<Patient> list = new ArrayList<>(n);
+        Gender[] genders = Gender.values();
+        Severity[] severities = Severity.values();
+
         for (int i = 1; i <= n; i++) {
             long arrivalMillis = FIXED_BASE - (long) rnd.nextInt(120) * 60_000L;
-            list.add(new Patient("B" + i, "Hasta" + i, 1 + rnd.nextInt(94),
-                    Severity.values()[rnd.nextInt(Severity.values().length)],
-                    "—", rnd.nextBoolean(), rnd.nextBoolean(), arrivalMillis, i));
+            Gender g = genders[rnd.nextInt(genders.length)];
+            int painScore = rnd.nextInt(11);
+            boolean pregnant = (g == Gender.FEMALE) && rnd.nextBoolean();
+
+            list.add(new Patient(
+                    "B" + i,
+                    "Hasta" + i,
+                    1 + rnd.nextInt(94),
+                    g,
+                    painScore,
+                    severities[rnd.nextInt(severities.length)],
+                    "—",
+                    rnd.nextBoolean(),
+                    pregnant,
+                    arrivalMillis,
+                    i
+            ));
         }
         return list;
     }

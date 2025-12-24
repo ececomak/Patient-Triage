@@ -2,6 +2,7 @@ package com.ece.ertriage.ui;
 
 import com.ece.ertriage.core.TriagePolicy;
 import com.ece.ertriage.core.TriageQueueService;
+import com.ece.ertriage.model.Gender;
 import com.ece.ertriage.model.Patient;
 import com.ece.ertriage.model.Severity;
 import com.ece.ertriage.ui.benchmark.BenchmarkRunner;
@@ -86,15 +87,33 @@ public final class DashboardView extends BorderPane {
     private VBox buildAddForm() {
         TextField name = new TextField();
         name.setPromptText("Ad Soyad");
+
         Spinner<Integer> age = new Spinner<>(0, 120, 30);
         age.setEditable(true);
+
+        ComboBox<Gender> gender = new ComboBox<>();
+        gender.getItems().addAll(Gender.values());
+        gender.setValue(Gender.FEMALE);
+
+        Spinner<Integer> pain = new Spinner<>(0, 10, 3);
+        pain.setEditable(true);
+
         ComboBox<Severity> severity = new ComboBox<>();
         severity.getItems().addAll(Severity.values());
         severity.setValue(Severity.MEDIUM);
+
         TextField complaint = new TextField();
         complaint.setPromptText("Şikayet (kısa)");
+
         CheckBox chronic = new CheckBox("Kronik");
         CheckBox pregnant = new CheckBox("Hamile");
+
+        gender.setOnAction(e -> {
+            boolean canPreg = gender.getValue() == Gender.FEMALE;
+            pregnant.setDisable(!canPreg);
+            if (!canPreg) pregnant.setSelected(false);
+        });
+        pregnant.setDisable(gender.getValue() != Gender.FEMALE);
 
         Button add = new Button("Hasta Ekle");
         add.setOnAction(e -> {
@@ -105,8 +124,19 @@ public final class DashboardView extends BorderPane {
                 return;
             }
             if (c.isEmpty()) c = "—";
-            Patient p = service.addPatient(n, age.getValue(), severity.getValue(), c, chronic.isSelected(), pregnant.isSelected());
-            log("EKLE " + p.id() + " | " + p.name() + " | " + p.severity());
+
+            Patient p = service.addPatient(
+                    n,
+                    age.getValue(),
+                    gender.getValue(),
+                    pain.getValue(),
+                    severity.getValue(),
+                    c,
+                    chronic.isSelected(),
+                    pregnant.isSelected()
+            );
+
+            log("EKLE " + p.id() + " | " + p.name() + " | " + p.gender() + " | ağrı=" + p.painScore() + " | " + p.severity());
             name.clear();
             complaint.clear();
             chronic.setSelected(false);
@@ -132,14 +162,25 @@ public final class DashboardView extends BorderPane {
         grid.setHgap(10);
         grid.setVgap(8);
         int r = 0;
+
         grid.add(new Label("Ad Soyad"), 0, r);
         grid.add(name, 1, r++);
+
         grid.add(new Label("Yaş"), 0, r);
         grid.add(age, 1, r++);
+
+        grid.add(new Label("Cinsiyet"), 0, r);
+        grid.add(gender, 1, r++);
+
+        grid.add(new Label("Ağrı (0–10)"), 0, r);
+        grid.add(pain, 1, r++);
+
         grid.add(new Label("Öncelik Seviyesi"), 0, r);
         grid.add(severity, 1, r++);
+
         grid.add(new Label("Şikayet"), 0, r);
         grid.add(complaint, 1, r++);
+
         grid.add(new HBox(12, chronic, pregnant), 1, r++);
         grid.add(new HBox(10, add, next, benchmark), 1, r++);
 
@@ -177,6 +218,14 @@ public final class DashboardView extends BorderPane {
         name.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().name()));
         name.setPrefWidth(140);
 
+        TableColumn<Patient, String> gen = new TableColumn<>("Cinsiyet");
+        gen.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().gender().name()));
+        gen.setPrefWidth(100);
+
+        TableColumn<Patient, String> pain = new TableColumn<>("Ağrı");
+        pain.setCellValueFactory(d -> new SimpleStringProperty(String.valueOf(d.getValue().painScore())));
+        pain.setPrefWidth(70);
+
         TableColumn<Patient, String> sev = new TableColumn<>("Öncelik");
         sev.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().severity().name()));
         sev.setPrefWidth(100);
@@ -204,7 +253,7 @@ public final class DashboardView extends BorderPane {
         comp.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().complaint()));
         comp.setPrefWidth(220);
 
-        table.getColumns().setAll(id, name, sev, score, wait, arrival, comp);
+        table.getColumns().setAll(id, name, gen, pain, sev, score, wait, arrival, comp);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setFocusTraversable(false);
     }
@@ -326,10 +375,10 @@ public final class DashboardView extends BorderPane {
     }
 
     private void seedDemoData() {
-        service.addPatient("Ece", 21, Severity.MEDIUM, "Ateş", false, false);
-        service.addPatient("Hilal", 22, Severity.HIGH, "Nefes darlığı", false, false);
-        service.addPatient("Gizem", 70, Severity.HIGH, "Göğüs ağrısı", true, false);
-        service.addPatient("Zeren", 31, Severity.CRITICAL, "Travma", false, true);
+        service.addPatient("Ece", 21, Gender.FEMALE, 3, Severity.MEDIUM, "Ateş", false, false);
+        service.addPatient("Hilal", 22, Gender.FEMALE, 6, Severity.HIGH, "Nefes darlığı", false, false);
+        service.addPatient("Gizem", 70, Gender.FEMALE, 7, Severity.HIGH, "Göğüs ağrısı", true, false);
+        service.addPatient("Zeren", 31, Gender.FEMALE, 8, Severity.CRITICAL, "Travma", false, true);
     }
 
     private void toast(String msg) {

@@ -1,5 +1,6 @@
 package com.ece.ertriage.core;
 
+import com.ece.ertriage.model.Gender;
 import com.ece.ertriage.model.Patient;
 import com.ece.ertriage.model.Severity;
 
@@ -25,13 +26,19 @@ public final class TriageQueueService {
         };
     }
 
-    public Patient addPatient(String name, int age, Severity severity, String complaint,
+    public Patient addPatient(String name, int age, Gender gender, int painScore, Severity severity, String complaint,
                               boolean chronic, boolean pregnant) {
+        if (painScore < 0) painScore = 0;
+        if (painScore > 10) painScore = 10;
+        if (gender != Gender.FEMALE) pregnant = false;
+
         long now = System.currentTimeMillis();
         Patient p = new Patient(
                 idGen.nextId(),
                 name,
                 age,
+                gender,
+                painScore,
                 severity,
                 complaint,
                 chronic,

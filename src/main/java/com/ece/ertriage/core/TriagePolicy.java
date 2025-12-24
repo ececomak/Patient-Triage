@@ -19,6 +19,12 @@ public final class TriagePolicy {
         if (p.chronic()) riskBonus += 15;
         if (p.pregnant()) riskBonus += 15;
 
-        return base + waitingBonus + ageBonus + riskBonus;
+        int painBonus = 0;
+        int ps = p.painScore();
+        if (ps >= 9) painBonus += 30;
+        else if (ps >= 7) painBonus += 20;
+        else if (ps >= 4) painBonus += 10;
+
+        return base + waitingBonus + ageBonus + riskBonus + painBonus;
     }
 }
